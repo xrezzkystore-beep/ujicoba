@@ -196,6 +196,28 @@
 
                 <div class="mt-8 pt-6 border-t border-slate-800">
                     <h4 class="font-bold mb-4 flex items-center gap-2"><i class="fa fa-star text-yellow-500"></i> Ulasan Pembeli</h4>
+                    <div class="mt-4 border-t border-slate-700 pt-4">
+    <h4 class="font-bold mb-2">Beri Rating</h4>
+
+    <input type="range" id="star" min="1" max="5" value="5"
+        class="w-full accent-yellow-400"
+        oninput="document.getElementById('starValue').innerText=this.value">
+
+    <p class="text-yellow-400 mb-2">
+        ⭐ <span id="starValue">5</span>/5
+    </p>
+
+    <textarea id="reviewText"
+        class="w-full p-2 rounded bg-slate-800 border border-slate-700 text-xs"
+        placeholder="Tulis ulasan..."></textarea>
+
+    <button onclick="sendRating(currentProductId,
+        document.getElementById('star').value,
+        document.getElementById('reviewText').value)"
+        class="w-full bg-yellow-500 py-2 rounded mt-2 text-black font-bold">
+        Kirim Rating
+    </button>
+                    </div>
                     <div id="review-list" class="space-y-4 max-h-40 overflow-y-auto text-xs text-gray-500">
                         <p class="italic text-center">Belum ada ulasan untuk produk ini.</p>
                     </div>
@@ -291,7 +313,8 @@ window.checkout = async () => {
 
         let isLoginMode = true;
         let globalProducts = [];
-
+        let currentProductId = null;
+        
         // 1. AUTH LOGIC
         window.toggleAuthMode = () => {
             isLoginMode = !isLoginMode;
@@ -324,17 +347,28 @@ window.checkout = async () => {
         };
 
         onAuthStateChanged(auth, (user) => {
-            document.getElementById('loader').classList.add('hidden');
-            if (user) {
-                showPage('page-marketplace');
-                fetchUserData(user.uid);
-                listenProducts();
-                listenStats();
-            } else {
-                showPage('page-auth');
-            }
-        });
+    document.getElementById('loader').classList.add('hidden');
 
+    if (user) {
+
+        if(user.email === "xrezzkystore.id@gmail.com"){
+            showPage('page-admin');
+            loadRevenue(); // <<< WAJIB DISINI
+        } else {
+            showPage('page-marketplace');
+            loadCart();     // <<< TAMBAH
+            loadHistory();  // <<< TAMBAH
+        }
+
+        fetchUserData(user.uid);
+        listenProducts();
+        listenStats();
+
+    } else {
+        showPage('page-auth');
+    }
+});
+        
         async function fetchUserData(uid) {
             const snap = await get(ref(db, 'users/' + uid));
             if(snap.exists()){
@@ -402,6 +436,8 @@ window.checkout = async () => {
         `;
     });
 });
+        
+        currentProductId = id;
 
         window.viewDetail = (id) => {
             const p = globalProducts.find(x => x.id === id);
@@ -594,29 +630,6 @@ window.deleteAccount = async () => {
         alert("Akun dihapus!");
     }
 };
-    window.createOrder = async (product) => {
-    const user = auth.currentUser;
-
-    if (!user) {
-        alert("Silakan login dulu!");
-        return;
-    }
-
-    try {
-        await push(ref(db, 'orders'), {
-            userId: user.uid,
-            productName: product.name,
-            price: product.price,
-            status: "Pending",
-            createdAt: Date.now()
-        });
-
-        alert("Pesanan dibuat! Menunggu konfirmasi admin.");
-    } catch (error) {
-        console.error(error);
-        alert("Terjadi kesalahan saat membuat pesanan.");
-    }
-};
         
         
 window.addToCart = async (productId, stock) => {
@@ -724,7 +737,7 @@ window.checkout = async () => {
     const items = cartSnap.val();
     const total = 0;
 
-    await push(ref(db, "orders"), {
+    await push(ref(db, `transactions/${user.uid}`), {
         userId: user.uid,
         email: user.email,
         name: user.displayName || "User",
