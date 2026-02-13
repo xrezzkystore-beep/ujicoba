@@ -485,26 +485,28 @@ window.deleteAccount = async () => {
         alert("Akun dihapus!");
     }
 };
-        window.createOrder = async (product) => {
+    window.createOrder = async (product) => {
     const user = auth.currentUser;
 
-    if(!user){
+    if (!user) {
         alert("Silakan login dulu!");
         return;
     }
 
-    await push(ref(db, 'orders'), {
-        userId: user.uid,
-        productName: product.name,
-        price: product.price,
-        status: "Pending",
-        createdAt: Date.now()
-    });
+    try {
+        await push(ref(db, 'orders'), {
+            userId: user.uid,
+            productName: product.name,
+            price: product.price,
+            status: "Pending",
+            createdAt: Date.now()
+        });
 
-    alert("Pesanan dibuat! Menunggu konfirmasi admin.");
-};
-
-    alert("Pesanan dibuat! Menunggu konfirmasi admin.");
+        alert("Pesanan dibuat! Menunggu konfirmasi admin.");
+    } catch (error) {
+        console.error(error);
+        alert("Terjadi kesalahan saat membuat pesanan.");
+    }
 };
         window.confirmOrder = async (id) => {
     await update(ref(db, 'orders/' + id), {
