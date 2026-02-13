@@ -514,6 +514,172 @@ window.deleteAccount = async () => {
     });
 };
         
+for (let productId in order.items) {
+    const qty = order.items[productId].quantity;
+
+    const productRef = ref(db, `products/${productId}`);
+    const productSnap = await get(productRef);
+    const product = productSnap.val();
+
+    await update(productRef, {
+        stock: product.stock - qty,
+        sold: (product.sold || 0) + qty
+    });
+}
+        
+window.addToCart = async (productId, stock) => {
+    const user = auth.currentUser;
+    if (!user) return alert("Login dulu!");
+
+    const cartRef = ref(db, `carts/${user.uid}/${productId}`);
+    const snapshot = await get(cartRef);
+
+    let qty = 1;
+    if (snapshot.exists()) {
+        qty = snapshot.val().quantity + 1;
+        if (qty > stock) return alert("Stok tidak cukup!");
+    }
+
+    await set(cartRef, { quantity: qty });
+    alert("Masuk keranjang!");
+};
+        
+window.loadCart = async () => {
+    const user = auth.currentUser;
+    const cartRef = ref(db, `carts/${user.uid}`);
+
+    onValue(cartRef, async (snapshot) => {
+        const container = document.getElementById("cartList");
+        container.innerHTML = "";
+
+        snapshot.forEach(async (child) => {
+            const productId = child.key;
+            const qty = child.val().quantity;
+
+            const productSnap = await get(ref(db, `products/${productId}`));
+            const product = productSnap.val();
+
+            container.innerHTML += `
+                <div>
+                    ${product.name} 
+                    <button onclick="changeQty('${productId}', -1, ${product.stock})">-</button>
+                    ${qty}
+                    <button onclick="changeQty('${productId}', 1, ${product.stock})">+</button>
+                    <button onclick="removeCart('${productId}')">Hapus</button>
+                </div>
+            `;
+        });
+    });
+};
+        
+window.changeQty = async (productId, change, stock) => {
+    const user = auth.currentUser;
+    const cartRef = ref(db, `carts/${user.uid}/${productId}`);
+    const snapshot = await get(cartRef);
+
+    let qty = snapshot.val().quantity + change;
+
+    if (qty < 1) return alert("Minimal beli 1!");
+    if (qty > stock) return alert("Melebihi stok!");
+
+    await update(cartRef, { quantity: qty });
+};
+
+window.removeCart = async (productId) => {
+    const user = auth.currentUser;
+    await remove(ref(db, `carts/${user.uid}/${productId}`));
+};
+        
+window.checkout = async () => {
+    const user = auth.currentUser;
+    const cartSnap = await get(ref(db, `carts/${user.uid}`));
+
+    if (!cartSnap.exists()) return alert("Keranjang kosong!");
+
+    const items = cartSnap.val();
+    const total = 0;
+
+    await push(ref(db, "orders"), {
+        userId: user.uid,
+        email: user.email,
+        name: user.displayName || "User",
+        items: items,
+        createdAt: Date.now(),
+        status: "Pending"
+    });
+
+    await remove(ref(db, `carts/${user.uid}`));
+    alert("Pesanan dikirim!");
+};
+        
+window.sendRating = async (productId, star, review) => {
+    const user = auth.currentUser;
+    const ratingRef = ref(db, `ratings/${productId}/${user.uid}`);
+
+    const snap = await get(ratingRef);
+    if (snap.exists()) return alert("Kamu sudah rating!");
+
+    await set(ratingRef, {
+        name: user.displayName || "User",
+        email: user.email,
+        star: star,
+        review: review,
+        createdAt: Date.now()
+    });
+
+    alert("Rating dikirim!");
+};
+        
+window.loadRatings = (productId) => {
+    const ratingRef = ref(db, `ratings/${productId}`);
+
+    onValue(ratingRef, (snapshot) => {
+        const container = document.getElementById("ratingList");
+        container.innerHTML = "";
+
+        snapshot.forEach(child => {
+            const r = child.val();
+            const date = new Date(r.createdAt).toLocaleString();
+
+            container.innerHTML += `
+                <div>
+                    ⭐ ${r.star}/5 <br>
+                    ${r.name} (${r.email}) <br>
+                    ${r.review} <br>
+                    <small>${date}</small>
+                </div>
+            `;
+        });
+    });
+};
+        
+window.loadHistory = () => {
+    const user = auth.currentUser;
+    const orderRef = ref(db, "orders");
+
+    onValue(orderRef, (snapshot) => {
+        const container = document.getElementById("historyList");
+        container.innerHTML = "";
+
+        snapshot.forEach(child => {
+            const order = child.val();
+
+            if (order.userId === user.uid) {
+                const date = new Date(order.createdAt).toLocaleString();
+
+                container.innerHTML += `
+                    <div>
+                        Status: ${order.status} <br>
+                        Tanggal: ${date}
+                    </div>
+                `;
+            }
+        });
+    });
+};
+
+await remove(ref(db, `ratings/${productId}`));
+        
     </script>
 </body>
     </html>
