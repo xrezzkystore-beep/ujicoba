@@ -71,17 +71,31 @@
     </section>
 
     <section id="page-marketplace" class="hidden min-h-screen">
-        <header class="p-5 glass sticky top-0 z-40 flex justify-between items-center">
-            <div class="flex items-center gap-3" onclick="toggleProfileMenu()">
-                <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff" class="w-10 h-10 rounded-full border-2 border-blue-500">
-                <div>
-                    <p class="text-[10px] text-gray-400 uppercase tracking-tighter">Halo, Akun Saya</p>
-                    <p id="user-name-display" class="font-bold text-sm truncate w-24">Guest</p>
-                </div>
-            </div>
-            <div class="flex-1 px-4">
-                <input type="text" onkeyup="searchProduct(this.value)" placeholder="Cari produk..." class="w-full bg-slate-800 py-2 px-4 rounded-full text-xs border border-slate-700 focus:ring-1 focus:ring-blue-500 outline-none">
-            </div>
+        <div class="flex justify-between items-center mb-4">
+
+    <h2 class="text-xl font-bold">Marketplace</h2>
+
+    <div class="flex items-center gap-3">
+
+        <button onclick="toggleCart()" 
+            class="relative bg-slate-700 px-3 py-1 rounded">
+
+            🛒 Keranjang
+
+            <span id="cart-count"
+                class="bg-red-500 text-xs px-2 py-1 rounded-full absolute -top-2 -right-2 hidden">
+                0
+            </span>
+
+        </button>
+
+        <button onclick="logout()" 
+            class="bg-red-600 px-3 py-1 rounded">
+            Logout
+        </button>
+
+    </div>
+        </div>
         </header>
 
         <main class="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="product-list">
@@ -92,12 +106,40 @@
             <a href="https://xrezzky-web.github.io/xrezzkystore/" class="bg-blue-600 p-4 rounded-full -mt-12 border-8 border-slate-900 shadow-xl"><i class="fa fa-shop text-white"></i></a>
             <button onclick="checkAdminAccess()" class="text-gray-400"><i class="fa fa-grid-2 text-xl"></i><i class="fa fa-user-shield text-xl"></i></button>
         </div>
+
+        <!-- CART SECTION -->
+<div id="cart-section" class="hidden mt-6 bg-slate-800 p-4 rounded">
+    <h3 class="font-bold mb-2">Keranjang Saya</h3>
+    <div id="cartList" class="space-y-2"></div>
+
+    <button onclick="checkout()" 
+        class="mt-3 bg-green-600 px-4 py-2 rounded">
+        Checkout
+    </button>
+</div>
+
+<!-- HISTORY -->
+<div id="history-section" class="mt-6 bg-slate-800 p-4 rounded">
+    <h3 class="font-bold mb-2">Riwayat Transaksi</h3>
+    <div id="historyList" class="space-y-2"></div>
+</div>
+        
     </section>
 
     <section id="page-admin" class="hidden min-h-screen p-6 pb-24">
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-2xl font-bold text-blue-500">Admin Panel</h1>
             <button onclick="showPage('page-marketplace')" class="bg-slate-700 px-4 py-2 rounded-lg text-xs">Keluar Admin</button>
+            <div class="bg-slate-800 p-4 rounded mb-4">
+    <h3 class="font-bold">Total Revenue</h3>
+    <p id="totalRevenue" 
+       class="text-green-400 text-xl">
+       Rp 0
+    </p>
+</div>
+
+<div id="adminTransactions" class="mb-4"></div>
+        
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -181,6 +223,66 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
+
+        let cart = [];
+
+window.toggleCart = () => {
+    document.getElementById("cart-section").classList.toggle("hidden");
+};
+
+function updateCartCount() {
+    const badge = document.getElementById("cart-count");
+    badge.textContent = cart.length;
+    badge.classList.toggle("hidden", cart.length === 0);
+}
+
+window.addToCart = (product) => {
+    cart.push(product);
+    updateCartCount();
+};
+
+async function canBuy(user){
+    const snap = await get(ref(db, `transactions/${user.uid}`));
+    let pending = 0;
+
+    if(snap.exists()){
+        snap.forEach(t=>{
+            if(t.val().status === "pending"){
+                pending++;
+            }
+        });
+    }
+
+    return pending < 2;
+}
+
+window.checkout = async () => {
+    const user = auth.currentUser;
+    if(!user) return;
+
+    if(!(await canBuy(user))){
+        alert("Masih ada pembelian belum dikonfirmasi!");
+        return;
+    }
+
+    const userSnap = await get(ref(db, 'users/' + user.uid));
+    const userData = userSnap.val();
+
+    for(const item of cart){
+        await push(ref(db, `transactions/${user.uid}`), {
+            productId: item.id,
+            name: userData.username,
+            email: user.email,
+            price: item.price,
+            status: "pending",
+            createdAt: Date.now()
+        });
+    }
+
+    cart = [];
+    updateCartCount();
+    alert("Checkout berhasil!");
+};
         
         window.addEventListener("error", (e) => {
     console.log("GLOBAL ERROR:", e.message);
@@ -633,6 +735,48 @@ window.checkout = async () => {
 
     await remove(ref(db, `carts/${user.uid}`));
     alert("Pesanan dikirim!");
+};
+function loadRevenue(){
+    const trxRef = ref(db,"transactions");
+
+    onValue(trxRef,(snapshot)=>{
+        let total=0;
+        let html="";
+
+        snapshot.forEach(user=>{
+            user.forEach(trx=>{
+                const t=trx.val();
+
+                if(t.status==="confirmed"){
+                    total+=parseInt(t.price);
+                }
+
+                html+=`
+                <div class="bg-slate-700 p-3 rounded mb-2">
+                    <p><b>${t.name}</b> (${t.email})</p>
+                    <p>Status: ${t.status}</p>
+                    <button onclick="confirmTrx('${user.key}','${trx.key}')">✔</button>
+                    <button onclick="rejectTrx('${user.key}','${trx.key}')">❌</button>
+                </div>`;
+            });
+        });
+
+        document.getElementById("totalRevenue")
+            .innerText="Rp "+total.toLocaleString();
+
+        document.getElementById("adminTransactions")
+            .innerHTML=html;
+    });
+}
+
+window.confirmTrx=(uid,id)=>{
+    update(ref(db,`transactions/${uid}/${id}`),
+        {status:"confirmed"});
+};
+
+window.rejectTrx=(uid,id)=>{
+    update(ref(db,`transactions/${uid}/${id}`),
+        {status:"rejected"});
 };
         
 window.sendRating = async (productId, star, review) => {
