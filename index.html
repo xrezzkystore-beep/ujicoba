@@ -272,17 +272,44 @@
         };
 
         // 3. ADMIN LOGIC
-        window.checkAdminAccess = () => {
-            const user = auth.currentUser;
-            if(user.email === "xrezzkystore.id@gmail.com") {
-                const pass = prompt("Masukkan Password Admin:");
-                if(pass === "XREZZKY0930") {
-                    showPage('page-admin');
-                } else { alert("Password Salah!"); }
-            } else {
-                alert("Hanya Admin yang bisa mengakses fitur ini!");
-            }
-        };
+        window.checkAdminAccess = async () => {
+    const user = auth.currentUser;
+
+    if (!user) {
+        alert("Login dulu sebelum masuk Admin!");
+        return;
+    }
+
+    // Samakan huruf kecil semua
+    const emailLogin = user.email.toLowerCase();
+    const emailAdmin = "xrezzkystore.id@gmail.com".toLowerCase();
+
+    if (emailLogin !== emailAdmin) {
+        alert("Hanya Admin yang bisa mengakses fitur ini!");
+        return;
+    }
+
+    // Cek juga role di database (lebih aman)
+    const snap = await get(ref(db, 'users/' + user.uid));
+    if (!snap.exists()) {
+        alert("Data admin tidak ditemukan di database!");
+        return;
+    }
+
+    const data = snap.val();
+
+    if (data.role !== "admin") {
+        alert("Akun ini bukan admin!");
+        return;
+    }
+
+    const pass = prompt("Masukkan Password Admin:");
+    if (pass === "XREZZKY0930") {
+        showPage('page-admin');
+    } else {
+        alert("Password Salah!");
+    }
+};
 
         window.saveProduct = async () => {
             const name = document.getElementById('p-name').value;
