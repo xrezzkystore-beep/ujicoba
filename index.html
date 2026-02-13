@@ -258,7 +258,7 @@ function updateCartCount() {
     badge.classList.toggle("hidden", cart.length === 0);
 }
 
-window.addToCart = (product) => {
+window.addToCart = async (productId, stock) => {
     cart.push(product);
     updateCartCount();
 };
@@ -277,34 +277,6 @@ async function canBuy(user){
 
     return pending < 2;
 }
-
-window.checkout = async () => {
-    const user = auth.currentUser;
-    if(!user) return;
-
-    if(!(await canBuy(user))){
-        alert("Masih ada pembelian belum dikonfirmasi!");
-        return;
-    }
-
-    const userSnap = await get(ref(db, 'users/' + user.uid));
-    const userData = userSnap.val();
-
-    for(const item of cart){
-        await push(ref(db, `transactions/${user.uid}`), {
-            productId: item.id,
-            name: userData.username,
-            email: user.email,
-            price: item.price,
-            status: "pending",
-            createdAt: Date.now()
-        });
-    }
-
-    cart = [];
-    updateCartCount();
-    alert("Checkout berhasil!");
-};
         
         window.addEventListener("error", (e) => {
     console.log("GLOBAL ERROR:", e.message);
@@ -437,9 +409,10 @@ window.checkout = async () => {
     });
 });
         
-        currentProductId = id;
+        
 
         window.viewDetail = (id) => {
+            currentProductId = id;
             const p = globalProducts.find(x => x.id === id);
             loadRatings(id);
             document.getElementById('m-title').innerText = p.name;
@@ -649,37 +622,13 @@ window.addToCart = async (productId, stock) => {
     alert("Masuk keranjang!");
 };
         
-window.confirmOrder = async (id) => {
-    const orderRef = ref(db, 'orders/' + id);
-    const snap = await get(orderRef);
-
-    if (!snap.exists()) return;
-
-    const order = snap.val();
-
-    if (order.items) {
-        for (let productId in order.items) {
-            const qty = order.items[productId].quantity;
-
-            const productRef = ref(db, `products/${productId}`);
-            const productSnap = await get(productRef);
-
-            if (productSnap.exists()) {
-                const product = productSnap.val();
-
-                await update(productRef, {
-                    stock: product.stock - qty,
-                    sold: (product.sold || 0) + qty
-                });
-            }
-        }
-    }
-
-    await update(orderRef, {
-        status: "Selesai"
+window.confirmOrder = async (userId, trxId) => {
+    const trxRef = ref(db, `transactions/${userId}/${trxId}`);
+    await update(trxRef, {
+        status: "confirmed"
     });
 
-    alert("Pesanan dikonfirmasi!");
+    alert("Transaksi dikonfirmasi!");
 };
         
 window.loadCart = async () => {
@@ -749,6 +698,33 @@ window.checkout = async () => {
     await remove(ref(db, `carts/${user.uid}`));
     alert("Pesanan dikirim!");
 };
+        window.loadRevenue = () => {
+    const trxRef = ref(db, "transactions");
+    let total = 0;
+
+    onValue(trxRef, (snapshot) => {
+        total = 0;
+
+        if (!snapshot.exists()) return;
+
+        snapshot.forEach(userSnap => {
+            userSnap.forEach(trxSnap => {
+                const t = trxSnap.val();
+
+                if (t.status === "confirmed" && t.items) {
+                    for (let key in t.items) {
+                        total += t.items[key].price * t.items[key].quantity;
+                    }
+                }
+            });
+        });
+
+        document.getElementById("totalRevenue").innerText =
+            "Rp " + total.toLocaleString();
+    });
+};
+
+        
 function loadRevenue(){
     const trxRef = ref(db,"transactions");
 
@@ -840,25 +816,27 @@ window.loadRatings = (productId) => {
         
 window.loadHistory = () => {
     const user = auth.currentUser;
-    const orderRef = ref(db, "orders");
+    const trxRef = ref(db, `transactions/${user.uid}`);
 
-    onValue(orderRef, (snapshot) => {
+    onValue(trxRef, (snapshot) => {
         const container = document.getElementById("historyList");
         container.innerHTML = "";
 
+        if (!snapshot.exists()) {
+            container.innerHTML = "Belum ada transaksi";
+            return;
+        }
+
         snapshot.forEach(child => {
-            const order = child.val();
+            const trx = child.val();
+            const date = new Date(trx.createdAt).toLocaleString();
 
-            if (order.userId === user.uid) {
-                const date = new Date(order.createdAt).toLocaleString();
-
-                container.innerHTML += `
-                    <div>
-                        Status: ${order.status} <br>
-                        Tanggal: ${date}
-                    </div>
-                `;
-            }
+            container.innerHTML += `
+                <div class="bg-slate-700 p-3 rounded mb-2">
+                    <p>Status: ${trx.status}</p>
+                    <p>Tanggal: ${date}</p>
+                </div>
+            `;
         });
     });
 };
