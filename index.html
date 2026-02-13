@@ -312,47 +312,239 @@
                 const list = document.getElementById('admin-user-list');
                 list.innerHTML = "";
                 snap.forEach(child => {
-                    const u = child.val();
-                    list.innerHTML += `
-                        <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
-                            <div>
-                                <p class="font-bold text-xs">${u.username}</p>
-                                <p class="text-[10px] text-gray-500">${u.email}</p>
-                            </div>
-                            <button onclick="deleteUser('${child.key}')" class="text-red-500 hover:text-red-400 text-xs"><i class="fa fa-trash"></i></button>
-                        </div>
-                    `;
-                });
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getDatabase, ref, set, get, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyA75bdcfawOi957by8y_4-l4sJCCo6pF88",
+    authDomain: "xrezzkystore-marketplace-83bc0.firebaseapp.com",
+    databaseURL: "https://xrezzkystore-marketplace-83bc0-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "xrezzkystore-marketplace-83bc0",
+    storageBucket: "xrezzkystore-marketplace-83bc0.firebasestorage.app",
+    messagingSenderId: "604900856944",
+    appId: "1:604900856944:web:c48c973da45214c68a10b5"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+let isLoginMode = true;
+let globalProducts = [];
+
+/* ================= AUTH ================= */
+
+window.toggleAuthMode = () => {
+    isLoginMode = !isLoginMode;
+    document.getElementById('reg-fields').classList.toggle('hidden', isLoginMode);
+    document.getElementById('auth-title').innerText = isLoginMode ? "Welcome Back" : "Join Us";
+    document.getElementById('btn-auth').innerText = isLoginMode ? "Login" : "Daftar Akun";
+    document.getElementById('auth-toggle-text').innerText =
+        isLoginMode ? "Belum punya akun? Daftar sekarang" : "Sudah punya akun? Login";
+};
+
+window.handleAuth = async () => {
+    const email = document.getElementById('auth-email').value.trim();
+    const pass = document.getElementById('auth-pass').value.trim();
+    const user = document.getElementById('auth-user').value.trim();
+
+    if (!email || !pass) return alert("Isi semua data!");
+
+    try {
+        if (isLoginMode) {
+            await signInWithEmailAndPassword(auth, email, pass);
+        } else {
+            if (!user) return alert("Username wajib diisi!");
+            const res = await createUserWithEmailAndPassword(auth, email, pass);
+            await set(ref(db, 'users/' + res.user.uid), {
+                username: user,
+                email: email,
+                role: 'user',
+                joinDate: new Date().toLocaleDateString()
             });
         }
+    } catch (e) {
+        alert(e.message);
+    }
+};
 
-        // 4. UTILS
-        window.searchProduct = (query) => {
-            const filtered = globalProducts.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
-            const container = document.getElementById('product-list');
-            // Re-render filtered list logic here...
-        };
+onAuthStateChanged(auth, (user) => {
+    document.getElementById('loader').classList.add('hidden');
+    if (user) {
+        showPage('page-marketplace');
+        fetchUserData(user.uid);
+        listenProducts();
+        listenStats();
+    } else {
+        showPage('page-auth');
+    }
+});
 
-        window.showPage = (id) => {
-            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
-            document.getElementById(id).classList.remove('hidden');
-        };
+async function fetchUserData(uid) {
+    const snap = await get(ref(db, 'users/' + uid));
+    if (snap.exists()) {
+        const data = snap.val();
+        document.getElementById('user-name-display').innerText = data.username;
+        document.getElementById('user-avatar').src =
+            `https://ui-avatars.com/api/?name=${data.username}&background=3b82f6&color=fff`;
+    }
+}
 
-        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+/* ================= PRODUCT ================= */
 
-        window.resetPassword = () => {
-            const email = prompt("Masukkan Email Akun:");
-            if(email) {
-                sendPasswordResetEmail(auth, email).then(() => alert("Link reset terkirim ke email!")).catch(e => alert(e.message));
-            }
-        };
+function listenProducts() {
+    onValue(ref(db, 'products'), (snap) => {
+        const data = snap.val();
+        const container = document.getElementById('product-list');
+        container.innerHTML = "";
+        globalProducts = [];
 
-        window.deleteUser = async (uid) => {
-            if(confirm("Hapus akun ini dari database?")) {
-                await remove(ref(db, 'users/' + uid));
-                alert("User terhapus!");
-            }
+        if (!data) {
+            container.innerHTML =
+                `<p class="col-span-full text-center text-gray-600 py-20">Belum ada produk tersedia.</p>`;
+            return;
         }
-    </script>
+
+        for (let id in data) {
+            const p = data[id];
+            p.stock = parseInt(p.stock) || 0;
+            globalProducts.push({ ...p, id });
+            renderProductCard(p, id);
+        }
+    });
+}
+
+function renderProductCard(p, id) {
+    const container = document.getElementById('product-list');
+    const isOut = p.stock <= 0;
+
+    container.innerHTML += `
+        <div class="glass rounded-2xl overflow-hidden group cursor-pointer transition-all hover:scale-[1.02]" onclick="viewDetail('${id}')">
+            <div class="relative h-40">
+                <img src="${p.image}" class="w-full h-full object-cover">
+                ${isOut ? '<div class="absolute inset-0 bg-black/70 flex items-center justify-center text-xs font-bold text-red-500">HABIS</div>' : ''}
+            </div>
+            <div class="p-3">
+                <h3 class="font-bold text-sm truncate mb-1">${p.name}</h3>
+                <div class="flex justify-between items-center">
+                    <p class="text-blue-500 font-bold text-sm">Rp ${Number(p.price).toLocaleString()}</p>
+                    <p class="text-[9px] text-gray-500">Sisa ${p.stock}</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.viewDetail = (id) => {
+    const p = globalProducts.find(x => x.id === id);
+    if (!p) return;
+
+    document.getElementById('m-title').innerText = p.name;
+    document.getElementById('m-price').innerText = "Rp " + Number(p.price).toLocaleString();
+    document.getElementById('m-desc').innerText = p.description;
+    document.getElementById('m-img').src = p.image;
+    document.getElementById('m-stock').innerText =
+        p.stock > 0 ? `Stok: ${p.stock}` : "Stok Habis";
+
+    const btnWa = document.getElementById('btn-wa');
+
+    if (p.stock <= 0) {
+        btnWa.disabled = true;
+        btnWa.className = "bg-slate-700 py-4 rounded-2xl font-bold";
+        btnWa.innerText = "Stok Habis";
+    } else {
+        btnWa.disabled = false;
+        btnWa.className = "bg-green-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2";
+        btnWa.innerHTML = `<i class="fab fa-whatsapp text-xl"></i> Beli Sekarang`;
+        btnWa.onclick = () =>
+            window.open(`https://wa.me/6288293064112?text=Halo Admin, saya mau order *${p.name}*`);
+    }
+
+    document.getElementById('modal-detail').classList.remove('hidden');
+};
+
+/* ================= ADMIN ================= */
+
+window.checkAdminAccess = () => {
+    const user = auth.currentUser;
+    if (!user) return alert("Login dulu!");
+
+    if (user.email === "xrezzkystore.id@gmail.com") {
+        const pass = prompt("Masukkan Password Admin:");
+        if (pass === "XREZZKY0930") {
+            showPage('page-admin');
+        } else alert("Password Salah!");
+    } else alert("Hanya Admin yang bisa mengakses fitur ini!");
+};
+
+window.saveProduct = async () => {
+    const name = document.getElementById('p-name').value;
+    const price = document.getElementById('p-price').value;
+    const img = document.getElementById('p-img').value;
+    const desc = document.getElementById('p-desc').value;
+    const stock = parseInt(document.getElementById('p-stock').value) || 0;
+
+    if (!name || !price || !img)
+        return alert("Minimal nama, harga, dan foto diisi!");
+
+    await push(ref(db, 'products'), {
+        name, price, image: img, description: desc,
+        stock,
+        createdAt: new Date().getTime()
+    });
+
+    alert("Produk Berhasil Ditambahkan!");
+};
+
+/* FIX SIZE ERROR */
+function listenStats() {
+    onValue(ref(db, 'users'), (s) => {
+        const val = s.val();
+        document.getElementById('stat-users').innerText =
+            val ? Object.keys(val).length : 0;
+    });
+
+    onValue(ref(db, 'products'), (s) => {
+        const val = s.val();
+        document.getElementById('stat-prods').innerText =
+            val ? Object.keys(val).length : 0;
+    });
+}
+
+/* ================= UTILS ================= */
+
+window.searchProduct = (query) => {
+    const container = document.getElementById('product-list');
+    container.innerHTML = "";
+    globalProducts
+        .filter(p => p.name.toLowerCase().includes(query.toLowerCase()))
+        .forEach(p => renderProductCard(p, p.id));
+};
+
+window.showPage = (id) => {
+    document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+};
+
+window.closeModal = (id) =>
+    document.getElementById(id).classList.add('hidden');
+
+window.resetPassword = () => {
+    const email = prompt("Masukkan Email Akun:");
+    if (email)
+        sendPasswordResetEmail(auth, email)
+            .then(() => alert("Link reset terkirim ke email!"))
+            .catch(e => alert(e.message));
+};
+
+window.deleteUser = async (uid) => {
+    if (confirm("Hapus akun ini dari database?")) {
+        await remove(ref(db, 'users/' + uid));
+        alert("User terhapus!");
+    }
+};
+</script>
 </body>
 </html>
