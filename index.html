@@ -15,6 +15,31 @@
         ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 10px; }
     </style>
 </head>
+
+    <div id="profile-menu" class="hidden fixed top-16 left-4 glass p-4 rounded-xl w-64 z-50">
+    <p id="profile-join" class="text-xs text-gray-400 mb-3"></p>
+
+    <input type="text" id="new-username"
+    placeholder="Ubah Username"
+    class="w-full p-2 mb-2 rounded bg-slate-800 border border-slate-700 text-xs">
+
+    <button onclick="updateUsername()"
+    class="w-full bg-blue-600 py-2 rounded text-xs mb-2">
+    Update Username</button>
+
+    <button onclick="changePassword()"
+    class="w-full bg-yellow-600 py-2 rounded text-xs mb-2">
+    Ubah Password</button>
+
+    <button onclick="logoutUser()"
+    class="w-full bg-gray-600 py-2 rounded text-xs mb-2">
+    Logout</button>
+
+    <button onclick="deleteAccount()"
+    class="w-full bg-red-600 py-2 rounded text-xs">
+    Hapus Akun</button>
+    </div>
+    
 <body>
 
     <div id="loader" class="fixed inset-0 flex items-center justify-center bg-slate-900 z-[999]">
@@ -48,7 +73,7 @@
 
     <section id="page-marketplace" class="hidden min-h-screen">
         <header class="p-5 glass sticky top-0 z-40 flex justify-between items-center">
-            <div class="flex items-center gap-3" onclick="openProfile()">
+            <div class="flex items-center gap-3" onclick="toggleProfileMenu()">
                 <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff" class="w-10 h-10 rounded-full border-2 border-blue-500">
                 <div>
                     <p class="text-[10px] text-gray-400 uppercase tracking-tighter">Halo, Akun Saya</p>
@@ -104,6 +129,8 @@
                 <div class="mt-6">
                     <h4 class="text-sm font-bold mb-2">Daftar Pengguna</h4>
                     <div id="admin-user-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                    <h4 class="text-sm font-bold mb-2 mt-4">Pesanan Masuk</h4>
+                    <div id="admin-order-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
                 </div>
             </div>
         </div>
@@ -237,7 +264,10 @@
                     container.innerHTML += `
                         <div class="glass rounded-2xl overflow-hidden group cursor-pointer transition-all hover:scale-[1.02]" onclick="viewDetail('${id}')">
                             <div class="relative h-40">
-                                <img src="${p.image}" class="w-full h-full object-cover">
+                            ${auth.currentUser?.email === "xrezzkystore.id@gmail.com" ? 
+                           `<button onclick="deleteProduct('${id}')" 
+                              class="absolute top-2 right-2 bg-red-600 text-xs px-2 py-1 rounded">Hapus</button>` : ''}
+                                <img src="${p.images ? p.images[0] : p.image}" class="w-full h-full object-cover">
                                 ${isOut ? '<div class="absolute inset-0 bg-black/70 flex items-center justify-center text-xs font-bold text-red-500">HABIS</div>' : ''}
                             </div>
                             <div class="p-3">
@@ -253,12 +283,32 @@
             });
         }
 
+        onValue(ref(db, 'orders'), (snap) => {
+    const list = document.getElementById('admin-order-list');
+    if(!list) return;
+    list.innerHTML = "";
+
+    snap.forEach(child => {
+        const o = child.val();
+        list.innerHTML += `
+            <div class="bg-slate-800 p-3 rounded">
+                <p class="text-xs">${o.productName}</p>
+                <p class="text-[10px] text-yellow-400">${o.status}</p>
+                <button onclick="confirmOrder('${child.key}')" 
+                class="text-green-500 text-xs">
+                Konfirmasi</button>
+            </div>
+        `;
+    });
+});
+
         window.viewDetail = (id) => {
             const p = globalProducts.find(x => x.id === id);
             document.getElementById('m-title').innerText = p.name;
             document.getElementById('m-price').innerText = "Rp " + Number(p.price).toLocaleString();
             document.getElementById('m-desc').innerText = p.description;
-            document.getElementById('m-img').src = p.image;
+            let firstImg = p.images ? p.images[0] : p.image;
+            document.getElementById('m-img').src = firstImg;
             document.getElementById('m-stock').innerText = p.stock > 0 ? `Stok: ${p.stock}` : "Stok Habis";
             
             const btnWa = document.getElementById('btn-wa');
@@ -270,7 +320,7 @@
                 btnWa.disabled = false;
                 btnWa.classList.replace('bg-slate-700', 'bg-green-600');
                 btnWa.innerHTML = `<i class="fab fa-whatsapp text-xl"></i> Beli Sekarang`;
-                btnWa.onclick = () => window.open(`https://wa.me/6288293064112?text=Halo%20Admin,%20saya%20mau%20order%20*${p.name}*`);
+                btnWa.onclick = () => createOrder(p); => window.open(`https://wa.me/6288293064112?text=Halo%20Admin,%20saya%20mau%20order%20*${p.name}*`);
             }
 
             document.getElementById('modal-detail').classList.remove('hidden');
@@ -299,9 +349,14 @@
             if(!name || !price || !img) return alert("Minimal nama, harga, dan foto diisi!");
 
             await push(ref(db, 'products'), {
-                name, price, image: img, description: desc, stock: parseInt(stock),
-                createdAt: new Date().getTime()
-            });
+            name,
+            price,
+            images: img.split(','), // pisahkan pakai koma
+            description: desc,
+            stock: parseInt(stock),
+            createdAt: new Date().getTime()
+                
+    });
 
             alert("Produk Berhasil Ditambahkan!");
             // Reset Form
@@ -369,6 +424,84 @@
                 alert("User terhapus!");
             }
         }
+        
+        window.deleteProduct = async (id) => {
+    if(confirm("Hapus produk ini?")) {
+        await remove(ref(db, 'products/' + id));
+        alert("Produk dihapus!");
+    }
+};
+
+        window.toggleProfileMenu = () => {
+    document.getElementById('profile-menu').classList.toggle('hidden');
+};
+
+window.logoutUser = async () => {
+    await signOut(auth);
+};
+
+window.updateUsername = async () => {
+    const newName = document.getElementById('new-username').value;
+    const user = auth.currentUser;
+
+    if(newName) {
+        await update(ref(db, 'users/' + user.uid), {
+            username: newName
+        });
+        alert("Username diperbarui!");
+    }
+};
+
+window.changePassword = async () => {
+    const user = auth.currentUser;
+    const snap = await get(ref(db, 'users/' + user.uid));
+    const data = snap.val();
+
+    const now = Date.now();
+    const last = data.lastPasswordChange || 0;
+
+    if(now - last < 10800000) {
+        alert("Password hanya bisa diganti 3 jam sekali!");
+        return;
+    }
+
+    const newPass = prompt("Masukkan Password Baru:");
+    if(newPass) {
+        await user.updatePassword(newPass);
+        await update(ref(db, 'users/' + user.uid), {
+            lastPasswordChange: now
+        });
+        alert("Password berhasil diganti!");
+    }
+};
+
+window.deleteAccount = async () => {
+    const user = auth.currentUser;
+    if(confirm("Yakin hapus akun permanen?")) {
+        await remove(ref(db, 'users/' + user.uid));
+        await user.delete();
+        alert("Akun dihapus!");
+    }
+};
+        window.createOrder = async (product) => {
+    const user = auth.currentUser;
+
+    await push(ref(db, 'orders'), {
+        userId: user.uid,
+        productName: product.name,
+        price: product.price,
+        status: "Pending",
+        createdAt: Date.now()
+    });
+
+    alert("Pesanan dibuat! Menunggu konfirmasi admin.");
+};
+        window.confirmOrder = async (id) => {
+    await update(ref(db, 'orders/' + id), {
+        status: "Selesai"
+    });
+};
+        
     </script>
 </body>
     </html>
