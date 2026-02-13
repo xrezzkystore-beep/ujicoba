@@ -303,6 +303,7 @@
 
         window.viewDetail = (id) => {
             const p = globalProducts.find(x => x.id === id);
+            loadRatings(id);
             document.getElementById('m-title').innerText = p.name;
             document.getElementById('m-price').innerText = "Rp " + Number(p.price).toLocaleString();
             document.getElementById('m-desc').innerText = p.description;
@@ -429,8 +430,14 @@
         
         window.deleteProduct = async (id) => {
     if(confirm("Hapus produk ini?")) {
+
+        // Hapus Produk
         await remove(ref(db, 'products/' + id));
-        alert("Produk dihapus!");
+
+        // Hapus Semua Rating Produk Itu
+        await remove(ref(db, `ratings/${id}`));
+
+        alert("Produk dan semua rating berhasil dihapus!");
     }
 };
 
@@ -508,24 +515,7 @@ window.deleteAccount = async () => {
         alert("Terjadi kesalahan saat membuat pesanan.");
     }
 };
-        window.confirmOrder = async (id) => {
-    await update(ref(db, 'orders/' + id), {
-        status: "Selesai"
-    });
-};
         
-for (let productId in order.items) {
-    const qty = order.items[productId].quantity;
-
-    const productRef = ref(db, `products/${productId}`);
-    const productSnap = await get(productRef);
-    const product = productSnap.val();
-
-    await update(productRef, {
-        stock: product.stock - qty,
-        sold: (product.sold || 0) + qty
-    });
-}
         
 window.addToCart = async (productId, stock) => {
     const user = auth.currentUser;
@@ -542,6 +532,39 @@ window.addToCart = async (productId, stock) => {
 
     await set(cartRef, { quantity: qty });
     alert("Masuk keranjang!");
+};
+        
+window.confirmOrder = async (id) => {
+    const orderRef = ref(db, 'orders/' + id);
+    const snap = await get(orderRef);
+
+    if (!snap.exists()) return;
+
+    const order = snap.val();
+
+    if (order.items) {
+        for (let productId in order.items) {
+            const qty = order.items[productId].quantity;
+
+            const productRef = ref(db, `products/${productId}`);
+            const productSnap = await get(productRef);
+
+            if (productSnap.exists()) {
+                const product = productSnap.val();
+
+                await update(productRef, {
+                    stock: product.stock - qty,
+                    sold: (product.sold || 0) + qty
+                });
+            }
+        }
+    }
+
+    await update(orderRef, {
+        status: "Selesai"
+    });
+
+    alert("Pesanan dikonfirmasi!");
 };
         
 window.loadCart = async () => {
@@ -634,19 +657,24 @@ window.loadRatings = (productId) => {
     const ratingRef = ref(db, `ratings/${productId}`);
 
     onValue(ratingRef, (snapshot) => {
-        const container = document.getElementById("ratingList");
+        const container = document.getElementById("review-list");
         container.innerHTML = "";
+
+        if (!snapshot.exists()) {
+            container.innerHTML = `<p class="italic text-center text-gray-500">Belum ada ulasan untuk produk ini.</p>`;
+            return;
+        }
 
         snapshot.forEach(child => {
             const r = child.val();
             const date = new Date(r.createdAt).toLocaleString();
 
             container.innerHTML += `
-                <div>
-                    ⭐ ${r.star}/5 <br>
-                    ${r.name} (${r.email}) <br>
-                    ${r.review} <br>
-                    <small>${date}</small>
+                <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                    <p class="text-yellow-400 font-bold">⭐ ${r.star}/5</p>
+                    <p class="text-xs">${r.name} (${r.email})</p>
+                    <p class="text-xs text-gray-400 mt-1">${r.review}</p>
+                    <p class="text-[10px] text-gray-500 mt-2">${date}</p>
                 </div>
             `;
         });
