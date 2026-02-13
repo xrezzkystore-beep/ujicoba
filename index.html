@@ -1,180 +1,358 @@
-<!DOCTYPE html><html lang="id">
+<!DOCTYPE html>
+<html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>XREZZKY STORE Marketplace</title><!-- Firebase --><script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, updateProfile, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue, remove, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XREZZKY STORE | Premium Marketplace</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: white; overflow-x: hidden; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .hidden { display: none; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 10px; }
+    </style>
+</head>
+<body>
 
-const firebaseConfig = {
-  apiKey: "AIzaSyA75bdcfawOi957by8y_4-l4sJCCo6pF88",
-  authDomain: "xrezzkystore-marketplace-83bc0.firebaseapp.com",
-  databaseURL: "https://xrezzkystore-marketplace-83bc0-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "xrezzkystore-marketplace-83bc0",
-  storageBucket: "xrezzkystore-marketplace-83bc0.firebasestorage.app",
-  messagingSenderId: "604900856944",
-  appId: "1:604900856944:web:c48c973da45214c68a10b5"
-};
+    <div id="loader" class="fixed inset-0 flex items-center justify-center bg-slate-900 z-[999]">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 border-opacity-50 mb-4"></div>
+            <p class="text-blue-400 font-bold tracking-widest">XREZZKY STORE</p>
+        </div>
+    </div>
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
+    <section id="page-auth" class="hidden min-h-screen flex items-center justify-center p-6">
+        <div class="glass p-8 rounded-2xl w-full max-w-md shadow-2xl">
+            <h2 id="auth-title" class="text-3xl font-bold mb-2 text-center text-blue-500">Welcome</h2>
+            <p id="auth-subtitle" class="text-gray-400 text-center mb-8 text-sm">Silahkan login untuk belanja</p>
+            
+            <div class="space-y-4">
+                <div id="reg-fields" class="hidden space-y-4">
+                    <input type="text" id="auth-user" placeholder="Username" class="w-full p-4 rounded-xl bg-slate-800 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <input type="email" id="auth-email" placeholder="Email Address" class="w-full p-4 rounded-xl bg-slate-800 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="password" id="auth-pass" placeholder="Password" class="w-full p-4 rounded-xl bg-slate-800 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                
+                <button onclick="handleAuth()" id="btn-auth" class="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg shadow-blue-900/20">Login</button>
+                
+                <div class="flex flex-col gap-3 text-center text-sm mt-6">
+                    <span onclick="toggleAuthMode()" id="auth-toggle-text" class="text-blue-400 cursor-pointer hover:underline">Belum punya akun? Daftar sekarang</span>
+                    <span onclick="resetPassword()" class="text-gray-500 cursor-pointer hover:text-white">Lupa kata sandi?</span>
+                </div>
+            </div>
+        </div>
+    </section>
 
-const ADMIN_EMAIL = "xrezzkystore.id@gmail.com";
+    <section id="page-marketplace" class="hidden min-h-screen">
+        <header class="p-5 glass sticky top-0 z-40 flex justify-between items-center">
+            <div class="flex items-center gap-3" onclick="openProfile()">
+                <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff" class="w-10 h-10 rounded-full border-2 border-blue-500">
+                <div>
+                    <p class="text-[10px] text-gray-400 uppercase tracking-tighter">Halo, Akun Saya</p>
+                    <p id="user-name-display" class="font-bold text-sm truncate w-24">Guest</p>
+                </div>
+            </div>
+            <div class="flex-1 px-4">
+                <input type="text" onkeyup="searchProduct(this.value)" placeholder="Cari produk..." class="w-full bg-slate-800 py-2 px-4 rounded-full text-xs border border-slate-700 focus:ring-1 focus:ring-blue-500 outline-none">
+            </div>
+        </header>
 
-window.register = async()=>{
-  const u = reg_username.value;
-  const e = reg_email.value;
-  const p = reg_password.value;
-  const cred = await createUserWithEmailAndPassword(auth,e,p);
-  await updateProfile(cred.user,{displayName:u});
-  await set(ref(db,'users/'+cred.user.uid),{
-    username:u,
-    email:e,
-    role:'user',
-    created:Date.now()
-  });
-  alert('Daftar berhasil');
-};
+        <main class="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="product-list">
+            </main>
 
-window.login = async()=>{
-  await signInWithEmailAndPassword(auth,login_email.value,login_password.value);
-};
+        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-8 px-8 py-4 glass rounded-full z-50 shadow-2xl">
+            <button onclick="showPage('page-marketplace')" class="text-blue-500"><i class="fa fa-home text-xl"></i></button>
+            <a href="https://xrezzky-web.github.io/xrezzkystore/" class="bg-blue-600 p-4 rounded-full -mt-12 border-8 border-slate-900 shadow-xl"><i class="fa fa-shop text-white"></i></a>
+            <button onclick="checkAdminAccess()" class="text-gray-400"><i class="fa fa-grid-2 text-xl"></i><i class="fa fa-user-shield text-xl"></i></button>
+        </div>
+    </section>
 
-window.resetPassword = async()=>{
-  await sendPasswordResetEmail(auth,reset_email.value);
-  alert('Email reset terkirim');
-};
+    <section id="page-admin" class="hidden min-h-screen p-6 pb-24">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-2xl font-bold text-blue-500">Admin Panel</h1>
+            <button onclick="showPage('page-marketplace')" class="bg-slate-700 px-4 py-2 rounded-lg text-xs">Keluar Admin</button>
+        </div>
 
-window.logout = async()=>{ await signOut(auth); };
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass p-6 rounded-2xl">
+                <h3 class="font-bold mb-4 border-b border-slate-700 pb-2">Upload Produk Baru</h3>
+                <div class="space-y-3">
+                    <input type="text" id="p-name" placeholder="Nama Produk" class="w-full p-3 rounded bg-slate-800 border border-slate-700">
+                    <input type="number" id="p-price" placeholder="Harga (Angka)" class="w-full p-3 rounded bg-slate-800 border border-slate-700">
+                    <input type="text" id="p-img" placeholder="URL Foto Produk" class="w-full p-3 rounded bg-slate-800 border border-slate-700">
+                    <textarea id="p-desc" placeholder="Detail Produk" class="w-full p-3 rounded bg-slate-800 border border-slate-700 h-24"></textarea>
+                    <input type="number" id="p-stock" placeholder="Jumlah Stok" class="w-full p-3 rounded bg-slate-800 border border-slate-700">
+                    <button onclick="saveProduct()" class="w-full bg-green-600 py-3 rounded-xl font-bold mt-2">Posting Produk</button>
+                </div>
+            </div>
 
-onAuthStateChanged(auth, async(user)=>{
-  if(!user){ show('login'); return; }
-  const snap = await get(ref(db,'users/'+user.uid));
-  const data = snap.val();
-  user_email.innerText = user.email;
-  user_name.innerText = data.username;
-  if(user.email===ADMIN_EMAIL){ show('admin'); loadAdmin(); }
-  else{ show('market'); loadProducts(); loadHistory(user.uid); }
-});
+            <div class="glass p-6 rounded-2xl">
+                <h3 class="font-bold mb-4 border-b border-slate-700 pb-2">Laporan Penjualan</h3>
+                <div id="admin-stats" class="grid grid-cols-2 gap-4">
+                    <div class="bg-blue-900/30 p-4 rounded-xl text-center">
+                        <p class="text-xs text-blue-300">Total User</p>
+                        <p id="stat-users" class="text-2xl font-bold">0</p>
+                    </div>
+                    <div class="bg-green-900/30 p-4 rounded-xl text-center">
+                        <p class="text-xs text-green-300">Total Produk</p>
+                        <p id="stat-prods" class="text-2xl font-bold">0</p>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <h4 class="text-sm font-bold mb-2">Daftar Pengguna</h4>
+                    <div id="admin-user-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-function show(p){
-  login_page.style.display='none';
-  market_page.style.display='none';
-  admin_page.style.display='none';
-  if(p==='login')login_page.style.display='block';
-  if(p==='market')market_page.style.display='block';
-  if(p==='admin')admin_page.style.display='block';
-}
+    <div id="modal-detail" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90">
+        <div class="bg-slate-900 w-full max-w-xl rounded-3xl overflow-hidden relative border border-slate-700">
+            <button onclick="closeModal('modal-detail')" class="absolute top-4 right-4 bg-white/10 p-2 rounded-full hover:bg-red-500 transition"><i class="fa fa-times w-5 h-5 flex items-center justify-center"></i></button>
+            <img id="m-img" src="" class="w-full h-72 object-cover" onclick="viewImageFull(this.src)">
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <h2 id="m-title" class="text-2xl font-bold"></h2>
+                    <span id="m-stock" class="bg-blue-600/20 text-blue-400 text-[10px] px-3 py-1 rounded-full border border-blue-500/30"></span>
+                </div>
+                <p id="m-price" class="text-xl font-bold text-blue-500 mb-4"></p>
+                <p id="m-desc" class="text-gray-400 text-sm mb-6 leading-relaxed"></p>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="btn-wa" class="bg-green-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition hover:bg-green-700"><i class="fab fa-whatsapp text-xl"></i> Beli Sekarang</button>
+                    <button onclick="alert('Masuk ke Keranjang!')" class="bg-slate-800 py-4 rounded-2xl font-bold border border-slate-700">Keranjang</button>
+                </div>
 
-/* PRODUCTS */
-function loadProducts(){
-  onValue(ref(db,'products'),snap=>{
-    product_list.innerHTML='';
-    snap.forEach(d=>{
-      const p=d.val();
-      product_list.innerHTML+=`
-      <div class="product">
-        <div class="img" onclick="viewImg()">FOTO</div>
-        <b>${p.name}</b>
-        <div>Stok: ${p.stock}</div>
-        <div>${p.detail}</div>
-        <button onclick="buy()">BELI</button>
-        <button onclick="addCart('${d.key}')">KERANJANG</button>
-        <button onclick="ask()">TANYA</button>
-        <button onclick="testi('${d.key}')">TESTI PEMBELI</button>
-      </div>`;
-    });
-  });
-}
+                <div class="mt-8 pt-6 border-t border-slate-800">
+                    <h4 class="font-bold mb-4 flex items-center gap-2"><i class="fa fa-star text-yellow-500"></i> Ulasan Pembeli</h4>
+                    <div id="review-list" class="space-y-4 max-h-40 overflow-y-auto text-xs text-gray-500">
+                        <p class="italic text-center">Belum ada ulasan untuk produk ini.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-window.buy=()=>location.href='https://wa.me/6288293064112';
-window.ask=()=>alert('Hubungi admin');
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getDatabase, ref, set, get, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-window.addCart=(id)=>{
-  push(ref(db,'cart/'+auth.currentUser.uid),{product:id,time:Date.now()});
-  alert('Masuk keranjang');
-};
+        // Konfigurasi Firebase sesuai permintaan Anda
+        const firebaseConfig = {
+            apiKey: "AIzaSyA75bdcfawOi957by8y_4-l4sJCCo6pF88",
+            authDomain: "xrezzkystore-marketplace-83bc0.firebaseapp.com",
+            databaseURL: "https://xrezzkystore-marketplace-83bc0-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "xrezzkystore-marketplace-83bc0",
+            storageBucket: "xrezzkystore-marketplace-83bc0.firebasestorage.app",
+            messagingSenderId: "604900856944",
+            appId: "1:604900856944:web:c48c973da45214c68a10b5"
+        };
 
-function loadHistory(uid){
-  onValue(ref(db,'transactions/'+uid),s=>{
-    history.innerHTML='';
-    s.forEach(d=>{
-      history.innerHTML+=`<div>${new Date(d.val().time).toLocaleString()}</div>`;
-    });
-  });
-}
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
 
-/* ADMIN */
-function loadAdmin(){
-  onValue(ref(db,'products'),s=>{
-    admin_products.innerHTML='';
-    s.forEach(d=>{
-      const p=d.val();
-      admin_products.innerHTML+=`<div>${p.name} <button onclick="delProduct('${d.key}')">Hapus</button></div>`;
-    });
-  });
-}
+        let isLoginMode = true;
+        let globalProducts = [];
 
-window.addProduct=()=>{
-  push(ref(db,'products'),{
-    name:prod_name.value,
-    detail:prod_detail.value,
-    stock:prod_stock.value
-  });
-};
+        // 1. AUTH LOGIC
+        window.toggleAuthMode = () => {
+            isLoginMode = !isLoginMode;
+            document.getElementById('reg-fields').classList.toggle('hidden', isLoginMode);
+            document.getElementById('auth-title').innerText = isLoginMode ? "Welcome Back" : "Join Us";
+            document.getElementById('btn-auth').innerText = isLoginMode ? "Login" : "Daftar Akun";
+            document.getElementById('auth-toggle-text').innerText = isLoginMode ? "Belum punya akun? Daftar sekarang" : "Sudah punya akun? Login";
+        };
 
-window.delProduct=(id)=>{ remove(ref(db,'products/'+id)); };
-</script><style>
-body{margin:0;font-family:Arial;background:#999}
-.page{display:none}
-.card{background:#fff;width:90%;max-width:420px;margin:60px auto;padding:24px;border-radius:20px}
-input,button{width:100%;padding:12px;margin:6px 0;border-radius:12px;border:1px solid #ccc}
-button{background:#22e0e0;border:none;font-weight:bold}
-header{background:#5bc0eb;padding:10px;display:flex;justify-content:space-between}
-.product{background:#eee;margin:12px;padding:12px;border-radius:16px}
-.img{background:#00ff00;height:180px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:bold}
-</style></head>
-<body><!-- LOGIN --><div id="login_page" class="page">
-  <div class="card">
-    <h2 align="center">MARKETPLACE<br>XREZZKY STORE</h2>
-    <input id="login_email" placeholder="Gmail">
-    <input id="login_password" type="password" placeholder="Password">
-    <button onclick="login()">LOGIN</button>
-    <div onclick="reg.style.display='block'">Daftar</div>
-    <div onclick="reset.style.display='block'">Lupa Password</div><div id="reg" style="display:none">
-  <input id="reg_username" placeholder="Username">
-  <input id="reg_email" placeholder="Gmail">
-  <input id="reg_password" type="password" placeholder="Password">
-  <button onclick="register()">DAFTAR</button>
-</div>
+        window.handleAuth = async () => {
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+            const user = document.getElementById('auth-user').value;
 
-<div id="reset" style="display:none">
-  <input id="reset_email" placeholder="Gmail">
-  <button onclick="resetPassword()">RESET</button>
-</div>
+            if(!email || !pass) return alert("Isi semua data!");
 
-  </div>
-</div><!-- MARKETPLACE --><div id="market_page" class="page">
-<header>
-  <div>👤 <span id="user_name"></span></div>
-  <button onclick="logout()">Logout</button>
-</header>
-<div id="product_list"></div>
-<h3>Riwayat Transaksi</h3>
-<div id="history"></div>
-<div style="text-align:center">
-  <button onclick="location.href='https://xrezzky-web.github.io/xrezzkystore/'">HOME</button>
-</div>
-</div><!-- ADMIN --><div id="admin_page" class="page">
-<header>ADMIN PANEL</header>
-<input id="prod_name" placeholder="Nama Produk">
-<input id="prod_stock" placeholder="Stok">
-<input id="prod_detail" placeholder="Detail">
-<button onclick="addProduct()">Tambah Produk</button>
-<h3>Produk</h3>
-<div id="admin_products"></div>
-<button onclick="logout()">Logout</button>
-</div></body>
+            try {
+                if (isLoginMode) {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                } else {
+                    const res = await createUserWithEmailAndPassword(auth, email, pass);
+                    await set(ref(db, 'users/' + res.user.uid), {
+                        username: user || email.split('@')[0],
+                        email: email,
+                        role: 'user',
+                        joinDate: new Date().toLocaleDateString()
+                    });
+                }
+            } catch (e) { alert(e.message); }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            document.getElementById('loader').classList.add('hidden');
+            if (user) {
+                showPage('page-marketplace');
+                fetchUserData(user.uid);
+                listenProducts();
+                listenStats();
+            } else {
+                showPage('page-auth');
+            }
+        });
+
+        async function fetchUserData(uid) {
+            const snap = await get(ref(db, 'users/' + uid));
+            if(snap.exists()){
+                const data = snap.val();
+                document.getElementById('user-name-display').innerText = data.username;
+                document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${data.username}&background=3b82f6&color=fff`;
+            }
+        }
+
+        // 2. PRODUCT LOGIC (USER)
+        function listenProducts() {
+            onValue(ref(db, 'products'), (snap) => {
+                const data = snap.val();
+                const container = document.getElementById('product-list');
+                container.innerHTML = "";
+                globalProducts = [];
+                
+                if(!data) {
+                    container.innerHTML = `<p class="col-span-full text-center text-gray-600 py-20">Belum ada produk tersedia.</p>`;
+                    return;
+                }
+
+                for(let id in data) {
+                    const p = data[id];
+                    globalProducts.push({...p, id});
+                    const isOut = p.stock <= 0;
+                    
+                    container.innerHTML += `
+                        <div class="glass rounded-2xl overflow-hidden group cursor-pointer transition-all hover:scale-[1.02]" onclick="viewDetail('${id}')">
+                            <div class="relative h-40">
+                                <img src="${p.image}" class="w-full h-full object-cover">
+                                ${isOut ? '<div class="absolute inset-0 bg-black/70 flex items-center justify-center text-xs font-bold text-red-500">HABIS</div>' : ''}
+                            </div>
+                            <div class="p-3">
+                                <h3 class="font-bold text-sm truncate mb-1">${p.name}</h3>
+                                <div class="flex justify-between items-center">
+                                    <p class="text-blue-500 font-bold text-sm">Rp ${Number(p.price).toLocaleString()}</p>
+                                    <p class="text-[9px] text-gray-500">Sisa ${p.stock}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        window.viewDetail = (id) => {
+            const p = globalProducts.find(x => x.id === id);
+            document.getElementById('m-title').innerText = p.name;
+            document.getElementById('m-price').innerText = "Rp " + Number(p.price).toLocaleString();
+            document.getElementById('m-desc').innerText = p.description;
+            document.getElementById('m-img').src = p.image;
+            document.getElementById('m-stock').innerText = p.stock > 0 ? `Stok: ${p.stock}` : "Stok Habis";
+            
+            const btnWa = document.getElementById('btn-wa');
+            if(p.stock <= 0) {
+                btnWa.disabled = true;
+                btnWa.classList.replace('bg-green-600', 'bg-slate-700');
+                btnWa.innerText = "Stok Habis";
+            } else {
+                btnWa.disabled = false;
+                btnWa.classList.replace('bg-slate-700', 'bg-green-600');
+                btnWa.innerHTML = `<i class="fab fa-whatsapp text-xl"></i> Beli Sekarang`;
+                btnWa.onclick = () => window.open(`https://wa.me/6288293064112?text=Halo%20Admin,%20saya%20mau%20order%20*${p.name}*`);
+            }
+
+            document.getElementById('modal-detail').classList.remove('hidden');
+        };
+
+        // 3. ADMIN LOGIC
+        window.checkAdminAccess = () => {
+            const user = auth.currentUser;
+            if(user.email === "xrezzkystore.id@gmail.com") {
+                const pass = prompt("Masukkan Password Admin:");
+                if(pass === "XREZZKY0930") {
+                    showPage('page-admin');
+                } else { alert("Password Salah!"); }
+            } else {
+                alert("Hanya Admin yang bisa mengakses fitur ini!");
+            }
+        };
+
+        window.saveProduct = async () => {
+            const name = document.getElementById('p-name').value;
+            const price = document.getElementById('p-price').value;
+            const img = document.getElementById('p-img').value;
+            const desc = document.getElementById('p-desc').value;
+            const stock = document.getElementById('p-stock').value;
+
+            if(!name || !price || !img) return alert("Minimal nama, harga, dan foto diisi!");
+
+            await push(ref(db, 'products'), {
+                name, price, image: img, description: desc, stock: parseInt(stock),
+                createdAt: new Date().getTime()
+            });
+
+            alert("Produk Berhasil Ditambahkan!");
+            // Reset Form
+            document.querySelectorAll('#page-admin input, #page-admin textarea').forEach(i => i.value = "");
+        };
+
+        function listenStats() {
+            onValue(ref(db, 'users'), (s) => document.getElementById('stat-users').innerText = s.size || 0);
+            onValue(ref(db, 'products'), (s) => document.getElementById('stat-prods').innerText = s.size || 0);
+            
+            // List User untuk Admin
+            onValue(ref(db, 'users'), (snap) => {
+                const list = document.getElementById('admin-user-list');
+                list.innerHTML = "";
+                snap.forEach(child => {
+                    const u = child.val();
+                    list.innerHTML += `
+                        <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <div>
+                                <p class="font-bold text-xs">${u.username}</p>
+                                <p class="text-[10px] text-gray-500">${u.email}</p>
+                            </div>
+                            <button onclick="deleteUser('${child.key}')" class="text-red-500 hover:text-red-400 text-xs"><i class="fa fa-trash"></i></button>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        // 4. UTILS
+        window.searchProduct = (query) => {
+            const filtered = globalProducts.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+            const container = document.getElementById('product-list');
+            // Re-render filtered list logic here...
+        };
+
+        window.showPage = (id) => {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        };
+
+        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+
+        window.resetPassword = () => {
+            const email = prompt("Masukkan Email Akun:");
+            if(email) {
+                sendPasswordResetEmail(auth, email).then(() => alert("Link reset terkirim ke email!")).catch(e => alert(e.message));
+            }
+        };
+
+        window.deleteUser = async (uid) => {
+            if(confirm("Hapus akun ini dari database?")) {
+                await remove(ref(db, 'users/' + uid));
+                alert("User terhapus!");
+            }
+        }
+    </script>
+</body>
 </html>
