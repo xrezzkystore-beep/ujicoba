@@ -15,6 +15,7 @@
         ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 10px; }
     </style>
 </head>
+<body>
 
     <div id="profile-menu" class="hidden fixed top-16 left-4 glass p-4 rounded-xl w-64 z-50">
     <p id="profile-join" class="text-xs text-gray-400 mb-3"></p>
@@ -40,8 +41,6 @@
     Hapus Akun</button>
     </div>
     
-<body>
-
     <div id="loader" class="fixed inset-0 flex items-center justify-center bg-slate-900 z-[999]">
         <div class="text-center">
             <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 border-opacity-50 mb-4"></div>
@@ -320,7 +319,10 @@
                 btnWa.disabled = false;
                 btnWa.classList.replace('bg-slate-700', 'bg-green-600');
                 btnWa.innerHTML = `<i class="fab fa-whatsapp text-xl"></i> Beli Sekarang`;
-                btnWa.onclick = () => createOrder(p); => window.open(`https://wa.me/6288293064112?text=Halo%20Admin,%20saya%20mau%20order%20*${p.name}*`);
+                btnWa.onclick = () => {
+                createOrder(p);
+                window.open(`https://wa.me/6288293064112?text=Halo Admin, saya mau order *${p.name}*`);
+        };
             }
 
             document.getElementById('modal-detail').classList.remove('hidden');
@@ -486,6 +488,11 @@ window.deleteAccount = async () => {
         window.createOrder = async (product) => {
     const user = auth.currentUser;
 
+    if(!user){
+        alert("Silakan login dulu!");
+        return;
+    }
+
     await push(ref(db, 'orders'), {
         userId: user.uid,
         productName: product.name,
@@ -493,6 +500,9 @@ window.deleteAccount = async () => {
         status: "Pending",
         createdAt: Date.now()
     });
+
+    alert("Pesanan dibuat! Menunggu konfirmasi admin.");
+};
 
     alert("Pesanan dibuat! Menunggu konfirmasi admin.");
 };
