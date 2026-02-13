@@ -212,41 +212,7 @@
         }
 
         // 2. PRODUCT LOGIC (USER)
-        function listenProducts() {
-            onValue(ref(db, 'products'), (snap) => {
-                const data = snap.val();
-                const container = document.getElementById('product-list');
-                container.innerHTML = "";
-                globalProducts = [];
-                
-                if(!data) {
-                    container.innerHTML = `<p class="col-span-full text-center text-gray-600 py-20">Belum ada produk tersedia.</p>`;
-                    return;
-                }
-
-                for(let id in data) {
-                    const p = data[id];
-                    globalProducts.push({...p, id});
-                    const isOut = p.stock <= 0;
-                    
-                    container.innerHTML += `
-                        <div class="glass rounded-2xl overflow-hidden group cursor-pointer transition-all hover:scale-[1.02]" onclick="viewDetail('${id}')">
-                            <div class="relative h-40">
-                                <img src="${p.image}" class="w-full h-full object-cover">
-                                ${isOut ? '<div class="absolute inset-0 bg-black/70 flex items-center justify-center text-xs font-bold text-red-500">HABIS</div>' : ''}
-                            </div>
-                            <div class="p-3">
-                                <h3 class="font-bold text-sm truncate mb-1">${p.name}</h3>
-                                <div class="flex justify-between items-center">
-                                    <p class="text-blue-500 font-bold text-sm">Rp ${Number(p.price).toLocaleString()}</p>
-                                    <p class="text-[9px] text-gray-500">Sisa ${p.stock}</p>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-            });
-        }
+        
 
         window.viewDetail = (id) => {
             const p = globalProducts.find(x => x.id === id);
@@ -273,17 +239,59 @@
 
         // 3. ADMIN LOGIC
         window.checkAdminAccess = () => {
-            const user = auth.currentUser;
-            if(user.email === "xrezzkystore.id@gmail.com") {
-                const pass = prompt("Masukkan Password Admin:");
-                if(pass === "XREZZKY0930") {
-                    showPage('page-admin');
-                } else { alert("Password Salah!"); }
-            } else {
-                alert("Hanya Admin yang bisa mengakses fitur ini!");
-            }
-        };
+    const user = auth.currentUser;
 
+    if (!user) {
+        alert("Login dulu sebelum masuk Admin!");
+        return;
+    }
+
+    if (user.email.toLowerCase() !== "xrezzkystore.id@gmail.com") {
+        alert("Hanya Admin yang bisa mengakses fitur ini!");
+        return;
+    }
+
+    const pass = prompt("Masukkan Password Admin:");
+    if (pass === "XREZZKY0930") {
+        showPage('page-admin');
+    } else {
+        alert("Password Salah!");
+    }
+};
+
+        function listenStats() {
+    onValue(ref(db, 'users'), (snap) => {
+        const val = snap.val();
+        document.getElementById('stat-users').innerText =
+            val ? Object.keys(val).length : 0;
+    });
+
+    onValue(ref(db, 'products'), (snap) => {
+        const val = snap.val();
+        document.getElementById('stat-prods').innerText =
+            val ? Object.keys(val).length : 0;
+    });
+
+    onValue(ref(db, 'users'), (snap) => {
+        const list = document.getElementById('admin-user-list');
+        list.innerHTML = "";
+        snap.forEach(child => {
+            const u = child.val();
+            list.innerHTML += `
+                <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
+                    <div>
+                        <p class="font-bold text-xs">${u.username}</p>
+                        <p class="text-[10px] text-gray-500">${u.email}</p>
+                    </div>
+                    <button onclick="deleteUser('${child.key}')" class="text-red-500 hover:text-red-400 text-xs">
+                        <i class="fa fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+    });
+        }
+        
         window.saveProduct = async () => {
             const name = document.getElementById('p-name').value;
             const price = document.getElementById('p-price').value;
@@ -328,11 +336,27 @@
 
         // 4. UTILS
         window.searchProduct = (query) => {
-            const filtered = globalProducts.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
-            const container = document.getElementById('product-list');
-            // Re-render filtered list logic here...
-        };
+    const container = document.getElementById('product-list');
+    container.innerHTML = "";
 
+    globalProducts
+        .filter(p => p.name.toLowerCase().includes(query.toLowerCase()))
+        .forEach(p => {
+            container.innerHTML += `
+                <div class="glass rounded-2xl overflow-hidden group cursor-pointer transition-all hover:scale-[1.02]" onclick="viewDetail('${p.id}')">
+                    <div class="relative h-40">
+                        <img src="${p.image}" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-3">
+                        <h3 class="font-bold text-sm truncate mb-1">${p.name}</h3>
+                        <p class="text-blue-500 font-bold text-sm">
+                            Rp ${Number(p.price).toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+            `;
+        });
+};
         window.showPage = (id) => {
             document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
             document.getElementById(id).classList.remove('hidden');
