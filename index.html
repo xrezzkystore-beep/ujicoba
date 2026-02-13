@@ -274,6 +274,13 @@
         // 3. ADMIN LOGIC
         window.checkAdminAccess = async () => {
     const user = auth.currentUser;
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+        // Debug Error Global
+window.addEventListener("error", (e) => {
+    console.log("GLOBAL ERROR:", e.message);
+    document.getElementById('loader').classList.add('hidden');
+});
 
     if (!user) {
         alert("Login dulu sebelum masuk Admin!");
